@@ -40,6 +40,8 @@ build_global_instructions() {
 - Always commit non-interactively so no editor opens: pass the message via `git commit -F -` (heredoc); for an amend use `git commit --amend --file=-`. Never run a bare `git commit` / `git commit --amend`, which can launch `vim`/`$EDITOR` and stall the session
 - If the flow is interrupted after the user has already approved, finish the exact approved commit directly with `git commit -F -` instead of restarting the review
 - After committing, confirm it landed with `git status --short` (in `--staged` mode, unstaged changes may legitimately remain)
+- Do not bypass git hooks without explicit user permission
+- Do not run tests without explicit user permission (hooks may run them, though)
 EOF
     printf '%s\n\n__END__' "$push_policy"
   )"

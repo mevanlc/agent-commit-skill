@@ -58,7 +58,7 @@ for golden in "${SCRIPT_DIR}"/*/expected.txt; do
   fi
 
   # 5. Counts interpolated into the output must not carry `wc -l` padding.
-  if grep -qE '\([[:space:]]+[0-9]+ (lines|characters)\)' "$golden"; then
+  if grep -qE '\([[:space:]]+[0-9]+ (lines|characters|bytes)\)' "$golden"; then
     fail "${name}: padded numeric count in output"
   fi
 done

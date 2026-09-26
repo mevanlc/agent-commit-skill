@@ -81,6 +81,8 @@ force-push, reset, rebase, or amend to force a rejected push through.
 7. Once confirmed or while preconfirmed mode remains engaged, perform the commit exactly as instructed.
 8. Close out with the report the helper's Final Report section describes: every change you made to the repository beyond the staging, commit, and push the mode authorizes (including edits made to satisfy a pre-commit hook), then any substantial issues even when the outcome is green, then one outcome line. Do not report the commit hash unless the user asks for it.
 9. If the helper requests heredoc-based commit input, put only the commit message in the heredoc. Do not put follow-up commands inside the heredoc.
+10. Do not bypass git hooks without explicit user permission.
+11. Do not run tests without explicit user permission (hooks may run them, though).
 
 ## Windows
 
