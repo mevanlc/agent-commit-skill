@@ -1,0 +1,44 @@
+# Optional: uncomment these to make plain `acsc` usable without selecting flags.
+[defaults]
+# harness = "codex"
+# mode = "staged"
+skill = "commit"
+effort = "medium"
+yes = false
+push = false
+fast = false
+
+# This global effort overrides bundled harness/model efforts. Remove it to use
+# the launcher-derived defaults (for example Claude high, spark xhigh).
+
+[harnesses.codex]
+model = "sol"
+# Windows: ["codexd.ps1"]. Omit command to use the platform's bundled wrapper.
+# command = ["codexd"]
+base_args = ["--x-no-mcp", "--disable", "memories"]
+
+[harnesses.codex.models."gpt-6.1-sol"]
+aliases = ["sol"]
+display_name = "Sol"
+effort = "high"
+native_efforts = ["low", "medium", "high", "xhigh", "max", "ultra"]
+
+[harnesses.antigravity.effort_map]
+low = "low"
+medium = "medium"
+high = "high"
+xhigh = "high"
+max = "high"
+ultra = "high"
+
+[harnesses.antigravity.models."gemini-3.1-pro"]
+aliases = ["pro"]
+effort = "high"
+effort_map = { medium = "high" }
+
+[harnesses.claude.native_settings]
+autoMemoryEnabled = false
+
+[discovery.codex_cache]
+enabled = true
+# path = "/custom/CODEX_HOME/models_cache.json"

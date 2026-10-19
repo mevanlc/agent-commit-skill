@@ -6,6 +6,7 @@ This repo provides:
 - Codex, Copilot, and Antigravity skills (`commit`, `gdf-commit`) and Claude slash commands (`/commit`, `/gdf-commit`)
 - A shared bash helper, `commit-tool/commit-tool.sh`, that prints a structured **Commit Review** workflow and normally requires explicit user confirmation before committing
 - Optional preflight hooks (for example, identity checks)
+- [acsc](acsc/README.md), a Rust CLI that unifies model, effort, and commit-mode selection across the four agent harnesses
 
 ## Install
 
@@ -117,6 +118,11 @@ Config location (default): `~/.config/agent-commit-skill/`
 Override the config directory by setting `AGENT_COMMIT_CONFIG_DIR`.
 
 ## Development
+
+Build and validate acsc separately with `cargo build --manifest-path acsc/Cargo.toml`
+and `cargo nextest run --manifest-path acsc/Cargo.toml`. See its
+[usage and configuration guide](acsc/README.md) for installation, aliases, and
+dynamic completion.
 
 Run tests (requires bash + git):
 
