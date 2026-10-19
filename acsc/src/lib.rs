@@ -4,6 +4,7 @@ pub mod catalog;
 pub mod cli;
 pub mod completion;
 pub mod config;
+pub mod config_command;
 pub mod domain;
 pub mod launch;
 mod preview;

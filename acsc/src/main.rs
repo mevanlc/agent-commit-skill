@@ -6,6 +6,7 @@ use acsc::catalog::{Catalog, effort_label};
 use acsc::cli::{self, Overrides};
 use acsc::completion;
 use acsc::config::Config;
+use acsc::config_command;
 use acsc::domain::Harness;
 use acsc::launch::LaunchPlan;
 use acsc::resolve::Resolver;
@@ -27,6 +28,22 @@ fn run() -> Result<i32> {
         return Ok(0);
     }
     let overrides = Overrides::from_matches(&matches);
+    if let Some(("config", config)) = matches.subcommand() {
+        let path = overrides.config.path()?;
+        return match config.subcommand().expect("required config subcommand") {
+            ("view", _) => {
+                config_command::view(&path, &mut io::stdout().lock())?;
+                Ok(0)
+            }
+            ("init", init) => {
+                config_command::init(&path, init.get_flag("overwrite"))?;
+                eprintln!("Created config {}", path.display());
+                Ok(0)
+            }
+            ("edit", _) => config_command::edit(&path),
+            _ => unreachable!("clap validates config subcommands"),
+        };
+    }
     let resolver = Resolver::new(Config::load(&overrides.config)?)?;
     if matches.subcommand_name() == Some("models") {
         let catalog = Catalog::load(&resolver)?;

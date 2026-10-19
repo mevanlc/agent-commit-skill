@@ -95,11 +95,43 @@ pub fn command() -> Command {
         .filter(|arg| !arg.is_positional())
         .cloned()
         .collect();
+    let config_options: Vec<_> = options
+        .iter()
+        .filter(|arg| matches!(arg.get_id().as_str(), "config" | "no-config"))
+        .cloned()
+        .collect();
     cmd.subcommand(
         Command::new("models")
             .about("List model presets and optional cached suggestions")
             .args_override_self(true)
             .args(options.clone()),
+    )
+    .subcommand(
+        Command::new("config")
+            .about("View, edit, or initialize user configuration")
+            .args_override_self(true)
+            .args(config_options.clone())
+            .subcommand_required(true)
+            .arg_required_else_help(true)
+            .subcommand(
+                Command::new("view")
+                    .about("Print the selected config file as written")
+                    .args_override_self(true)
+                    .args(config_options.clone()),
+            )
+            .subcommand(
+                Command::new("edit")
+                    .about("Open config in VISUAL, EDITOR, or vi (Notepad on Windows)")
+                    .args_override_self(true)
+                    .args(config_options.clone()),
+            )
+            .subcommand(
+                Command::new("init")
+                    .about("Write a starter config with all settings commented out")
+                    .args_override_self(true)
+                    .args(config_options)
+                    .arg(flag("overwrite", "Replace an existing config file")),
+            ),
     )
     .subcommand(
         Command::new("completion")
@@ -115,10 +147,18 @@ pub fn command() -> Command {
     )
 }
 
+fn selection<T: Clone + Send + Sync + 'static>(matches: &ArgMatches, id: &str) -> Option<T> {
+    matches.try_get_one::<T>(id).ok().flatten().cloned()
+}
+
+fn is_set(matches: &ArgMatches, id: &str) -> bool {
+    selection::<bool>(matches, id).unwrap_or(false)
+}
+
 fn toggle(matches: &ArgMatches, positive: &str, negative: &str) -> Option<bool> {
-    if matches.get_flag(positive) {
+    if is_set(matches, positive) {
         Some(true)
-    } else if matches.get_flag(negative) {
+    } else if is_set(matches, negative) {
         Some(false)
     } else {
         None
@@ -128,7 +168,8 @@ fn toggle(matches: &ArgMatches, positive: &str, negative: &str) -> Option<bool> 
 impl Overrides {
     pub fn from_matches(matches: &ArgMatches) -> Self {
         let mut resolved = Self::from_level(matches);
-        if let Some((_, child)) = matches.subcommand() {
+        let mut level = matches;
+        while let Some((_, child)) = level.subcommand() {
             let later = Self::from_level(child);
             resolved.harness = later.harness.or(resolved.harness);
             resolved.mode = later.mode.or(resolved.mode);
@@ -143,25 +184,26 @@ impl Overrides {
                 resolved.config = later.config;
             }
             resolved.dry_run |= later.dry_run;
+            level = child;
         }
         resolved
     }
 
     fn from_level(matches: &ArgMatches) -> Self {
-        let string = |id: &str| matches.get_one::<String>(id).cloned();
+        let string = |id: &str| selection::<String>(matches, id);
         Self {
-            harness: matches.get_one::<Harness>("harness").copied(),
-            mode: matches.get_one::<Mode>("mode").copied().or_else(|| {
+            harness: selection(matches, "harness"),
+            mode: selection(matches, "mode").or_else(|| {
                 [
                     ("all", Mode::All),
                     ("staged", Mode::Staged),
                     ("ask", Mode::Ask),
                 ]
                 .into_iter()
-                .find(|(id, _)| matches.get_flag(id))
+                .find(|(id, _)| is_set(matches, id))
                 .map(|(_, mode)| mode)
             }),
-            skill: string("skill").or_else(|| matches.get_flag("gdf").then(|| "gdf-commit".into())),
+            skill: string("skill").or_else(|| is_set(matches, "gdf").then(|| "gdf-commit".into())),
             model: string("model")
                 .map(ModelSelection::Named)
                 .or_else(|| string("model-id").map(ModelSelection::Literal)),
@@ -170,19 +212,17 @@ impl Overrides {
             yes: toggle(matches, "yes", "no-yes"),
             push: toggle(matches, "push", "no-push"),
             fast: toggle(matches, "fast", "no-fast"),
-            command: matches.get_one::<OsString>("command").cloned(),
-            config: matches
-                .get_one::<PathBuf>("config")
-                .cloned()
+            command: selection(matches, "command"),
+            config: selection::<PathBuf>(matches, "config")
                 .map(ConfigChoice::File)
                 .unwrap_or_else(|| {
-                    if matches.get_flag("no-config") {
+                    if is_set(matches, "no-config") {
                         ConfigChoice::Disabled
                     } else {
                         ConfigChoice::Default
                     }
                 }),
-            dry_run: matches.get_flag("dry-run"),
+            dry_run: is_set(matches, "dry-run"),
             instructions: matches
                 .try_get_many::<String>("instructions")
                 .ok()

@@ -2,11 +2,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::domain::{Effort, EffortSelection, Harness, Mode};
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Defaults {
     pub harness: Option<Harness>,
@@ -19,18 +19,19 @@ pub struct Defaults {
     pub fast: Option<bool>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ModelConfig {
     pub aliases: Option<Vec<String>>,
     pub display_name: Option<String>,
     pub effort: Option<String>,
     pub raw_effort: Option<String>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub effort_map: BTreeMap<Effort, String>,
     pub native_efforts: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct HarnessConfig {
     pub mode: Option<Mode>,
@@ -43,12 +44,14 @@ pub struct HarnessConfig {
     pub model: Option<String>,
     pub command: Option<Vec<String>>,
     pub base_args: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub effort_map: BTreeMap<Effort, String>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub native_settings: BTreeMap<String, serde_json::Value>,
     pub models: BTreeMap<String, ModelConfig>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CodexCache {
     pub enabled: bool,
@@ -64,13 +67,13 @@ impl Default for CodexCache {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Discovery {
     pub codex_cache: CodexCache,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub defaults: Defaults,
@@ -84,6 +87,21 @@ pub enum ConfigChoice {
     Default,
     File(PathBuf),
     Disabled,
+}
+
+impl ConfigChoice {
+    /// Configuration management requires a file even when no user config exists.
+    pub fn path(&self) -> Result<PathBuf> {
+        match self {
+            Self::Default => {
+                default_path().context("cannot determine config path; use --config PATH")
+            }
+            Self::File(path) => Ok(path.clone()),
+            Self::Disabled => bail!(
+                "configuration is disabled by --no-config; remove it or select --config PATH later"
+            ),
+        }
+    }
 }
 
 pub fn parse_effort(effort: Option<&str>, raw: Option<&str>) -> Result<Option<EffortSelection>> {

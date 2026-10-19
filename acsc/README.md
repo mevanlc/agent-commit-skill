@@ -31,6 +31,7 @@ acsc --harness antigravity -a --model pro
 acsc --harness copilot -s use imperative mood -- --native-option value
 acsc --harness codex -a --dry-run
 acsc models --harness codex
+acsc config edit
 ```
 
 Harness and mode must come from flags or configuration. Additional instruction
@@ -77,8 +78,8 @@ arguments use the existing `--all-yes-push` / `--staged-push` / `--ask-push`
 suffixes. Arbitrary skill names receive the same arguments.
 
 `-h` means help and `-m` means model. Legacy model letters and repeated effort
-shortcuts are replaced by named values. The `models` and `completion` words
-are subcommands; use another opening word when writing instructions that
+shortcuts are replaced by named values. The `models`, `config`, and `completion`
+words are subcommands; use another opening word when writing instructions that
 would otherwise start with one of these names.
 
 ## Configuration and defaults
@@ -92,6 +93,36 @@ User configuration is optional TOML at:
 Their final occurrence wins. Missing default files are normal; malformed
 files and explicitly selected missing files report errors. There is no
 repository-local config or named-profile layer.
+
+```sh
+acsc config edit                  # Open in $VISUAL, then $EDITOR
+acsc config view                  # Print the file exactly as written
+acsc config init                  # Create a commented reference to bundled defaults
+acsc config init --overwrite      # Replace an existing file
+acsc config edit --config ./my-config.toml
+```
+
+`init` creates parent directories and refuses to replace an existing file unless
+`--overwrite` is supplied. Every setting and table header in the starter is
+commented out, so creating it keeps the bundled behavior. Uncomment the table
+header and individual settings you want to change. Harness and mode examples
+are included, since neither has a bundled default.
+
+`edit` creates the same starter if the file is missing. It uses the first
+nonblank value of `$VISUAL` or `$EDITOR`, falling back to `vi` on Unix or
+`notepad.exe` on Windows, and waits for the editor to exit. Editor values may
+include arguments, such as `code --wait`, and use shell-style quoting for paths
+with spaces. A value that names an existing executable file also works as a
+literal path. Arguments are passed without shell evaluation; for example,
+quote a Windows path as `'"C:\Program Files\Editor\editor.exe" --wait'` when
+setting the environment variable in PowerShell. The editor inherits the terminal
+and its exit code is returned.
+
+`view` prints the selected file's contents without parsing TOML; it reports an
+error if the file is missing. Editing also works with malformed configuration.
+All three commands honor `--config PATH` before or after the subcommands, with
+later selections winning. `--no-config` reports an error for these commands
+unless followed by `--config PATH`.
 
 See [config.example.toml](config.example.toml) for a working example and
 [src/defaults.toml](src/defaults.toml) for the complete bundled data. Both are
