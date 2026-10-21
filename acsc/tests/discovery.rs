@@ -118,7 +118,75 @@ fn discovery_uses_codex_home_and_never_changes_launch_defaults() {
     let preview: serde_json::Value = serde_json::from_slice(&preview.stdout).unwrap();
     assert_eq!(preview["selections"]["model"]["value"], "gpt-5.6-sol");
     assert_eq!(preview["selections"]["native_effort"]["value"], "medium");
+    let preview = binary(temp.path())
+        .args([
+            "--harness",
+            "codex",
+            "-a",
+            "--model-size",
+            "large",
+            "--dry-run",
+        ])
+        .output()
+        .unwrap();
+    assert!(preview.status.success());
+    let preview: serde_json::Value = serde_json::from_slice(&preview.stdout).unwrap();
+    assert_eq!(preview["selections"]["model"]["value"], "gpt-6.1-sol");
+    assert_eq!(preview["selections"]["model_size"]["value"], "large");
     assert_eq!(fs::read_to_string(cache).unwrap(), contents);
+}
+
+#[test]
+fn model_sizes_are_listed_and_complete_native_efforts_for_the_mapped_model() {
+    let temp = TempDir::new().unwrap();
+    let config = temp.path().join("config.toml");
+    fs::write(&config, "[harnesses.claude.model_sizes]\nlarge='size-target'\n[harnesses.claude.models.size-target]\nnative_efforts=['native-tier-effort']\n[discovery.codex_cache]\nenabled=false").unwrap();
+    let output = binary(temp.path())
+        .args(["--config"])
+        .arg(&config)
+        .args(["models", "--harness", "claude"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let output = String::from_utf8(output.stdout).unwrap();
+    assert!(output.contains("size-target  [user]\n    model sizes: large"));
+    let words: Vec<_> = [
+        "acsc",
+        "--config",
+        config.to_str().unwrap(),
+        "--harness",
+        "claude",
+        "--model-size",
+        "large",
+    ]
+    .into_iter()
+    .map(OsString::from)
+    .collect();
+    let mut command = completion::command_for(&words);
+    let mut input = words;
+    input.extend([OsString::from("--raw-effort"), OsString::from("native")]);
+    let index = input.len() - 1;
+    let candidates = clap_complete::engine::complete(&mut command, input, index, None).unwrap();
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].get_value(), "native-tier-effort");
+    let output = binary(temp.path())
+        .arg("--config")
+        .arg(&config)
+        .args([
+            "--harness",
+            "claude",
+            "-s",
+            "--model-size",
+            "large",
+            "--dry-run",
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let preview: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(preview["selections"]["model_size"]["source"], "cli");
+    assert_eq!(preview["selections"]["model"]["value"], "size-target");
+    assert_eq!(preview["selections"]["model"]["source"], "user_harness");
 }
 
 #[test]

@@ -12,6 +12,12 @@ command = ["agyd"]
 base_args = ["--dangerously-skip-permissions"]
 effort_map = { xhigh = "high", max = "high", ultra = "high" }
 
+# Strength mappings verified 2026-10-21. Keep effort separate from model size.
+[harnesses.antigravity.model_sizes]
+normal = "gemini-3.8-flash"
+large = "gemini-4-argon"
+xlarge = "gemini-4-argon"
+
 [harnesses.antigravity.models."gemini-3.1-pro"]
 aliases = ["pro"]
 effort = "high"
@@ -35,6 +41,12 @@ effort = "medium"
 command = ["codexd"]
 base_args = ["--x-no-mcp", "--disable", "memories"]
 
+# Empirical local Codex catalog plus official model docs, verified 2026-10-21.
+[harnesses.codex.model_sizes]
+normal = "gpt-5.6-terra"
+large = "gpt-6.1-sol"
+xlarge = "gpt-6-astra"
+
 [harnesses.codex.models."gpt-5.6-sol"]
 
 [harnesses.codex.models."gpt-5.3-codex-spark"]
@@ -48,6 +60,12 @@ command = ["clauded"]
 base_args = ["--strict-mcp-config"]
 effort_map = { ultra = "max" }
 native_settings = { autoMemoryEnabled = false }
+
+# Official Claude Code model docs and local CLI, verified 2026-10-21.
+[harnesses.claude.model_sizes]
+normal = "claude-sonnet-5-5"
+large = "claude-opus-5-5"
+xlarge = "claude-fable-5-1"
 
 [harnesses.claude.models.opus]
 aliases = ["opus"]

@@ -30,6 +30,7 @@ acsc --harness claude -k -. --model sonnet
 acsc --harness antigravity -a --model pro
 acsc --harness copilot -s use imperative mood -- --native-option value
 acsc --harness codex -a --dry-run
+acsc --harness codex -s --model-size large -e high
 acsc models --harness codex
 acsc config edit
 ```
@@ -48,6 +49,7 @@ their sources without starting a child process.
 | Push | `-p/--push`, `--no-push` |
 | Skill | `--skill NAME`; `-./--gdf` selects `gdf-commit` |
 | Model | `-m/--model NAME`, `--model-id ID` |
+| Model strength | `--model-size normal\|large\|xlarge` |
 | Effort | `-e/--effort LEVEL`, `--raw-effort VALUE` |
 | Fast | `-f/--fast`, `--no-fast` (Codex/Claude) |
 | Executable | `--command PROGRAM` |
@@ -144,6 +146,58 @@ literal model ID. `--model-id` always uses its literal ID. `--model
 harness-default` omits the native model option; the literal escape still
 allows an ID spelled `harness-default`.
 
+### Model strength
+
+`--model-size normal|large|xlarge` selects acsc's relative model strength within
+the final harness. Size and effort are independent. `--model-size`, `--model`,
+and `--model-id` override each other in command-line order, including across
+shell aliases. Selecting a size keeps an explicit effort.
+
+The bundled mappings, checked on 2026-10-21, are:
+
+| Harness | normal | large | xlarge |
+|---|---|---|---|
+| Antigravity | `gemini-3.8-flash` | `gemini-4-argon` | `gemini-4-argon` |
+| Codex | `gpt-5.6-terra` | `gpt-6.1-sol` | `gpt-6-astra` |
+| Claude | `claude-sonnet-5-5` | `claude-opus-5-5` | `claude-fable-5-1` |
+
+"Latest" means the version baked into this table based on the local harness
+catalog and published documentation. These mappings change with acsc updates
+or your config; launch and completion never select a newer version from a
+cache or network lookup. The current IDs were checked against the local
+`agy models` output, the local Codex catalog,
+[official OpenAI model docs](https://developers.openai.com/api/docs/models),
+[Terra's model page](https://developers.openai.com/api/docs/models/gpt-5.6-terra),
+[Antigravity model identifiers](https://www.antigravity.google/docs/enterprise/#supported-models-in-gemini-enterprise),
+and [Claude Code's model documentation](https://code.claude.com/docs/en/model-config).
+
+Set a default size globally or for one harness:
+
+```toml
+[defaults]
+model_size = "normal"
+
+[harnesses.claude]
+model_size = "xlarge"
+
+[harnesses.codex.model_sizes]
+large = "gpt-6.1-sol"
+```
+
+Mapping values are literal native model IDs; user entries override individual
+sizes. A harness-level `model` or `model_size` takes precedence over the global
+`model_size`; the two are mutually exclusive within a harness table. Explicit
+CLI model/size selections take precedence over both. With no size selection,
+the existing harness model defaults apply.
+
+Copilot has no bundled size mapping yet. Selecting an unconfigured size reports
+an error naming the config entry to add. `acsc models` shows the effective size
+labels alongside their target IDs, and `--dry-run` shows the selected size, its
+source, and the source of the mapped model ID. `acsc config init` includes the
+commented mappings.
+
+### Effort and model metadata
+
 The shared effort ramp is `low`, `medium`, `high`, `xhigh`, `max`, `ultra`.
 Codex uses these unchanged. Copilot and Claude map ultra to max; Antigravity
 maps levels above high to high. The Pro model maps medium to high.
@@ -177,9 +231,10 @@ effort_map = { ultra = "max" }
 native_efforts = ["low", "high", "max"]
 ```
 
-Global defaults accept `harness`, `mode`, `skill`, `effort`/`raw_effort`, `yes`,
-`push`, and `fast`. Harness sections accept those applicable selections plus
-`model`, `command`, `base_args`, `effort_map`, `native_settings`, and `models`.
+Global defaults accept `harness`, `mode`, `model_size`, `skill`,
+`effort`/`raw_effort`, `yes`, `push`, and `fast`. Harness sections accept those
+applicable selections plus `model`, `model_sizes`, `command`, `base_args`,
+`effort_map`, `native_settings`, and `models`.
 Model entries accept `aliases`, `display_name`, `effort`/`raw_effort`,
 `effort_map`, and `native_efforts`. Duplicate aliases or aliases that shadow a
 different configured ID produce an error.

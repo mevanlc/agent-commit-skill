@@ -6,7 +6,9 @@ use serde::Serialize;
 
 use crate::cli::Overrides;
 use crate::config::{Config, HarnessConfig, ModelConfig, model_aliases, nonempty, parse_effort};
-use crate::domain::{Effort, EffortSelection, Harness, Mode, ModelSelection, Selection, Source};
+use crate::domain::{
+    Effort, EffortSelection, Harness, Mode, ModelSelection, ModelSize, Selection, Source,
+};
 
 /// Fully resolved choices, independent of terminal rendering or process execution.
 #[derive(Debug, Clone, Serialize)]
@@ -15,6 +17,7 @@ pub struct Resolved {
     pub mode: Selection<Mode>,
     pub skill: Selection<String>,
     pub model: Selection<Option<String>>,
+    pub model_size: Option<Selection<ModelSize>>,
     pub effort: Selection<EffortSelection>,
     pub native_effort: Selection<Option<String>>,
     pub yes: Selection<bool>,
@@ -74,6 +77,23 @@ impl Resolver {
         ])
     }
 
+    /// Fixed native IDs from acsc's data; user entries replace individual sizes.
+    /// Cache contents and model aliases never choose or rewrite these targets.
+    pub fn model_sizes(&self, harness: Harness) -> BTreeMap<ModelSize, Selection<String>> {
+        let (bundled, user) = self.harness_configs(harness);
+        let mut sizes: BTreeMap<_, _> = bundled
+            .model_sizes
+            .into_iter()
+            .map(|(size, id)| (size, Selection::new(id, Source::BundledHarness)))
+            .collect();
+        sizes.extend(
+            user.model_sizes
+                .into_iter()
+                .map(|(size, id)| (size, Selection::new(id, Source::UserHarness))),
+        );
+        sizes
+    }
+
     pub fn resolve(&self, cli: &Overrides) -> Result<Resolved> {
         let harness = self.selected_harness(cli)
             .context("select a harness with --harness antigravity|copilot|codex|claude or defaults.harness in config")?;
@@ -97,8 +117,15 @@ impl Resolver {
         let model_choice = choose([
             (cli.model.clone(), Source::Cli),
             (
-                user.model.clone().map(ModelSelection::Named),
+                user.model
+                    .clone()
+                    .map(ModelSelection::Named)
+                    .or_else(|| user.model_size.map(ModelSelection::Size)),
                 Source::UserHarness,
+            ),
+            (
+                global.model_size.map(ModelSelection::Size),
+                Source::UserGlobal,
             ),
             (
                 bundled.model.clone().map(ModelSelection::Named),
@@ -107,15 +134,27 @@ impl Resolver {
         ])
         .expect("bundled model selection");
         let aliases = model_aliases(&bundled, &user)?;
-        let model_id = match model_choice.value {
-            ModelSelection::Named(name) if name == "harness-default" => None,
-            ModelSelection::Named(name) => Some(aliases.get(&name).cloned().unwrap_or(name)),
-            ModelSelection::Literal(id) => Some(id),
+        let (model, model_size) = match model_choice.value {
+            ModelSelection::Size(size) => {
+                let mapped = self.model_sizes(harness.value).remove(&size).with_context(|| {
+                    format!("model size {size} is not configured for {}; set harnesses.{}.model_sizes.{size} in config or select --model/--model-id",
+                        harness.value, harness.value)
+                })?;
+                (
+                    Selection::new(Some(mapped.value), mapped.source),
+                    Some(Selection::new(size, model_choice.source)),
+                )
+            }
+            ModelSelection::Named(name) => {
+                let id = (name != "harness-default")
+                    .then(|| aliases.get(&name).cloned().unwrap_or(name));
+                (Selection::new(id, model_choice.source), None)
+            }
+            ModelSelection::Literal(id) => (Selection::new(Some(id), model_choice.source), None),
         };
-        if let Some(id) = &model_id {
+        if let Some(id) = &model.value {
             nonempty(id, "model")?;
         }
-        let model = Selection::new(model_id, model_choice.source);
         let user_model = model
             .value
             .as_ref()
@@ -228,6 +267,7 @@ impl Resolver {
             mode,
             skill,
             model,
+            model_size,
             effort,
             native_effort,
             yes,

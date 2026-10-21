@@ -37,7 +37,9 @@ pub fn starter() -> Result<String> {
             text.push_str(
                 "# No default harness or mode; these are optional examples:\n\
                  # harness = \"codex\"\n\
-                 # mode = \"staged\"\n",
+                 # mode = \"staged\"\n\
+                 # Optional model strength (no default):\n\
+                 # model_size = \"normal\"\n",
             );
         }
         if line == "[discovery.codex_cache]" {

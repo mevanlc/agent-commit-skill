@@ -5,7 +5,7 @@ use anyhow::Result;
 use serde::Serialize;
 
 use crate::config::{CodexCache, home_dir, model_aliases, parse_effort};
-use crate::domain::{EffortSelection, Harness};
+use crate::domain::{EffortSelection, Harness, ModelSize, Source};
 use crate::resolve::Resolver;
 
 /// Suggestions only: none of these fields participate in launch resolution.
@@ -14,6 +14,7 @@ pub struct CatalogModel {
     pub harness: Harness,
     pub id: String,
     pub aliases: Vec<String>,
+    pub model_sizes: Vec<ModelSize>,
     pub display_name: String,
     pub native_efforts: Vec<String>,
     pub advertised_default: Option<String>,
@@ -108,12 +109,14 @@ impl Catalog {
         for harness in Harness::ALL {
             let (bundled, user) = resolver.harness_configs(harness);
             let aliases = model_aliases(&bundled, &user)?;
+            let sizes = resolver.model_sizes(harness);
             let mut ids: BTreeSet<_> = bundled
                 .models
                 .keys()
                 .chain(user.models.keys())
                 .cloned()
                 .collect();
+            ids.extend(sizes.values().map(|target| target.value.clone()));
             if harness == Harness::Codex {
                 ids.extend(
                     cache
@@ -153,9 +156,17 @@ impl Catalog {
                     .and_then(|m| m.native_efforts.clone())
                     .or_else(|| bundled_model.and_then(|m| m.native_efforts.clone()))
                     .unwrap_or(cached.native_efforts);
-                let source = if user_model.is_some() {
+                let model_sizes: Vec<_> = sizes
+                    .iter()
+                    .filter(|(_, target)| target.value == id)
+                    .map(|(size, _)| *size)
+                    .collect();
+                let user_size = sizes
+                    .values()
+                    .any(|target| target.value == id && target.source == Source::UserHarness);
+                let source = if user_model.is_some() || user_size {
                     "user"
-                } else if configured.is_some() {
+                } else if configured.is_some() || !model_sizes.is_empty() {
                     "bundled"
                 } else {
                     "cache"
@@ -167,6 +178,7 @@ impl Catalog {
                         .filter(|(_, target)| **target == id)
                         .map(|(alias, _)| alias.clone())
                         .collect(),
+                    model_sizes,
                     display_name,
                     native_efforts,
                     configured_effort,

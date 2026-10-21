@@ -99,6 +99,34 @@ pub enum EffortSelection {
 pub enum ModelSelection {
     Named(String),
     Literal(String),
+    Size(ModelSize),
+}
+
+/// acsc's relative model strength, independent of the model's reasoning effort.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, ValueEnum)]
+#[serde(rename_all = "lowercase")]
+pub enum ModelSize {
+    Normal,
+    Large,
+    Xlarge,
+}
+
+impl ModelSize {
+    pub const ALL: [Self; 3] = [Self::Normal, Self::Large, Self::Xlarge];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Normal => "normal",
+            Self::Large => "large",
+            Self::Xlarge => "xlarge",
+        }
+    }
+}
+
+impl fmt::Display for ModelSize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.name())
+    }
 }
 
 /// Where a value was chosen. Cache metadata is deliberately not a default source.

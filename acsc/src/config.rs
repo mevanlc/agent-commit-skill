@@ -4,13 +4,14 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
-use crate::domain::{Effort, EffortSelection, Harness, Mode};
+use crate::domain::{Effort, EffortSelection, Harness, Mode, ModelSize};
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Defaults {
     pub harness: Option<Harness>,
     pub mode: Option<Mode>,
+    pub model_size: Option<ModelSize>,
     pub skill: Option<String>,
     pub effort: Option<String>,
     pub raw_effort: Option<String>,
@@ -42,6 +43,9 @@ pub struct HarnessConfig {
     pub push: Option<bool>,
     pub fast: Option<bool>,
     pub model: Option<String>,
+    pub model_size: Option<ModelSize>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub model_sizes: BTreeMap<ModelSize, String>,
     pub command: Option<Vec<String>>,
     pub base_args: Option<Vec<String>>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
@@ -179,6 +183,12 @@ impl Config {
         }
         for (name, harness) in &self.harnesses {
             let scope = format!("harnesses.{name}");
+            if harness.model.is_some() && harness.model_size.is_some() {
+                bail!("{scope}: model and model_size are mutually exclusive");
+            }
+            for (size, id) in &harness.model_sizes {
+                nonempty(id, &format!("{scope}.model_sizes.{size}"))?;
+            }
             parse_effort(harness.effort.as_deref(), harness.raw_effort.as_deref())
                 .with_context(|| scope.clone())?;
             for (field, value) in [("model", &harness.model), ("skill", &harness.skill)] {

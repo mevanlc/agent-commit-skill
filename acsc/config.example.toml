@@ -2,6 +2,7 @@
 [defaults]
 # harness = "codex"
 # mode = "staged"
+# model_size = "normal"
 skill = "commit"
 effort = "medium"
 yes = false
@@ -22,6 +23,11 @@ aliases = ["sol"]
 display_name = "Sol"
 effort = "high"
 native_efforts = ["low", "medium", "high", "xhigh", "max", "ultra"]
+
+# Override individual strength mappings with native model IDs. Other sizes keep
+# their bundled targets. At a harness scope, use either model or model_size.
+[harnesses.codex.model_sizes]
+large = "gpt-6.1-sol"
 
 [harnesses.antigravity.effort_map]
 low = "low"

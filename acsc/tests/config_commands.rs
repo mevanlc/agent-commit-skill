@@ -38,6 +38,8 @@ fn init_creates_commented_defaults_and_requires_explicit_overwrite() {
     );
     assert!(text.contains("# [defaults]"));
     assert!(text.contains("# [discovery.codex_cache]"));
+    assert!(text.contains("# [harnesses.codex.model_sizes]"));
+    assert!(text.contains("# large = \"gpt-6.1-sol\""));
     assert!(text.contains("# aliases = [\"spark\"]"));
     assert!(text.contains(if cfg!(windows) {
         "# command = [\"codexd.ps1\"]"

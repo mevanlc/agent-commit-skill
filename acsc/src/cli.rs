@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use clap::{Arg, ArgAction, ArgMatches, Command, ValueHint, builder::NonEmptyStringValueParser};
 
 use crate::config::{ConfigChoice, parse_effort};
-use crate::domain::{EffortSelection, Harness, Mode, ModelSelection};
+use crate::domain::{EffortSelection, Harness, Mode, ModelSelection, ModelSize};
 
 #[derive(Debug, Clone, Default)]
 pub struct Overrides {
@@ -54,6 +54,8 @@ pub fn command() -> Command {
         .arg(flag("gdf", "Select gdf-commit").short('.'))
         .arg(value("model", "Preset or native ID; harness-default omits model").short('m'))
         .arg(value("model-id", "Literal native model ID, bypassing presets"))
+        .arg(value("model-size", "acsc model strength for the selected harness")
+            .value_parser(clap::value_parser!(ModelSize)))
         .arg(value("effort", "Shared effort; harness-default omits effort").short('e').value_parser([
             "low", "medium", "high", "xhigh", "max", "ultra", "harness-default",
         ]))
@@ -75,7 +77,7 @@ pub fn command() -> Command {
         &["yes", "no-yes"],
         &["push", "no-push"],
         &["skill", "gdf"],
-        &["model", "model-id"],
+        &["model", "model-id", "model-size"],
         &["effort", "raw-effort"],
         &["fast", "no-fast"],
         &["config", "no-config"],
@@ -206,7 +208,8 @@ impl Overrides {
             skill: string("skill").or_else(|| is_set(matches, "gdf").then(|| "gdf-commit".into())),
             model: string("model")
                 .map(ModelSelection::Named)
-                .or_else(|| string("model-id").map(ModelSelection::Literal)),
+                .or_else(|| string("model-id").map(ModelSelection::Literal))
+                .or_else(|| selection(matches, "model-size").map(ModelSelection::Size)),
             effort: parse_effort(string("effort").as_deref(), string("raw-effort").as_deref())
                 .expect("clap validates effort values"),
             yes: toggle(matches, "yes", "no-yes"),

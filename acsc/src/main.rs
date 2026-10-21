@@ -68,6 +68,18 @@ fn run() -> Result<i32> {
                         format!(" aliases: {}", model.aliases.join(", "))
                     }
                 )?;
+                if !model.model_sizes.is_empty() {
+                    writeln!(
+                        output,
+                        "    model sizes: {}",
+                        model
+                            .model_sizes
+                            .iter()
+                            .map(|size| size.name())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )?;
+                }
                 if model.display_name != model.id {
                     writeln!(output, "    {}", model.display_name)?;
                 }
