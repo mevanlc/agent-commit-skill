@@ -26,7 +26,7 @@ fn init_creates_commented_defaults_and_requires_explicit_overwrite() {
     let temp = TempDir::new().unwrap();
     success(
         binary(temp.path())
-            .args(["config", "init"])
+            .args(["--config", "init"])
             .output()
             .unwrap(),
     );
@@ -40,7 +40,7 @@ fn init_creates_commented_defaults_and_requires_explicit_overwrite() {
     assert!(text.contains("# [discovery.codex_cache]"));
     assert!(text.contains("# [harnesses.codex.model_sizes]"));
     assert!(text.contains("# large = \"gpt-6.1-sol\""));
-    assert!(text.contains("# aliases = [\"spark\"]"));
+    assert!(text.contains("# aliases = [\"pro\"]"));
     assert!(text.contains(if cfg!(windows) {
         "# command = [\"codexd.ps1\"]"
     } else {
@@ -54,7 +54,7 @@ fn init_creates_commented_defaults_and_requires_explicit_overwrite() {
 
     fs::write(&path, "existing user content").unwrap();
     let output = binary(temp.path())
-        .args(["config", "init"])
+        .args(["--config", "init"])
         .output()
         .unwrap();
     assert!(!output.status.success());
@@ -66,7 +66,7 @@ fn init_creates_commented_defaults_and_requires_explicit_overwrite() {
     assert_eq!(fs::read_to_string(&path).unwrap(), "existing user content");
     success(
         binary(temp.path())
-            .args(["config", "init", "--overwrite"])
+            .args(["--config", "init", "--overwrite"])
             .output()
             .unwrap(),
     );
@@ -80,14 +80,14 @@ fn nested_config_selections_are_last_wins_and_relative_paths_work() {
         binary(temp.path())
             .current_dir(temp.path())
             .args([
-                "--config",
+                "--config-file",
                 "first",
-                "config",
                 "--config",
+                "--config-file",
                 "second",
                 "--no-config",
                 "init",
-                "--config",
+                "--config-file",
                 "nested/日本語 config.toml",
             ])
             .output()
@@ -103,8 +103,8 @@ fn nested_config_selections_are_last_wins_and_relative_paths_work() {
             .current_dir(temp.path())
             .args([
                 "--no-config",
-                "config",
                 "--config",
+                "--config-file",
                 "nested/日本語 config.toml",
                 "view",
             ])
@@ -122,7 +122,7 @@ fn view_preserves_exact_contents_even_when_invalid_and_does_not_create_missing_f
     fs::write(&path, content).unwrap();
     let output = success(
         binary(temp.path())
-            .args(["config", "view", "--config"])
+            .args(["--config", "view", "--config-file"])
             .arg(&path)
             .output()
             .unwrap(),
@@ -130,7 +130,7 @@ fn view_preserves_exact_contents_even_when_invalid_and_does_not_create_missing_f
     assert_eq!(output, content);
     assert_eq!(fs::read(&path).unwrap(), content);
     let output = binary(temp.path())
-        .args(["config", "view"])
+        .args(["--config", "view"])
         .output()
         .unwrap();
     assert!(!output.status.success());
@@ -147,7 +147,7 @@ fn disabled_config_commands_report_errors_without_mutating_files() {
     let temp = TempDir::new().unwrap();
     for command in ["init", "view", "edit"] {
         let output = binary(temp.path())
-            .args(["config", command, "--no-config"])
+            .args(["--config", command, "--no-config"])
             .output()
             .unwrap();
         assert!(!output.status.success());
@@ -185,7 +185,7 @@ fn edit_uses_editor_precedence_literal_argv_and_status_without_overwriting_exist
     let mut command = binary(temp.path());
     command
         .current_dir(temp.path())
-        .args(["config", "edit", "--config=-config 日本語.toml"])
+        .args(["--config", "edit", "--config-file=-config 日本語.toml"])
         .env("ACSC_TEST_RECORD", &record)
         .env(
             "ACSC_TEST_EDITOR_CONTENT",
@@ -273,7 +273,7 @@ fn edit_uses_editor_precedence_literal_argv_and_status_without_overwriting_exist
 fn invalid_editor_configuration_fails_before_creating_a_file() {
     let temp = TempDir::new().unwrap();
     let output = binary(temp.path())
-        .args(["config", "edit"])
+        .args(["--config", "edit"])
         .env("VISUAL", "'unmatched")
         .output()
         .unwrap();
@@ -291,7 +291,7 @@ fn config_subcommands_are_in_help_and_dynamic_completion() {
     let temp = TempDir::new().unwrap();
     let help = success(
         binary(temp.path())
-            .args(["config", "--help"])
+            .args(["--config", "--help"])
             .output()
             .unwrap(),
     );
@@ -303,7 +303,7 @@ fn config_subcommands_are_in_help_and_dynamic_completion() {
         binary(temp.path())
             .env("ACSC_COMPLETE", "bash")
             .env("_CLAP_COMPLETE_INDEX", "2")
-            .args(["--", "acsc", "config", "i"])
+            .args(["--", "acsc", "--config", "i"])
             .output()
             .unwrap(),
     );
@@ -318,7 +318,7 @@ fn init_refuses_dangling_symlinks_without_overwrite() {
     let target = temp.path().join("missing-target");
     std::os::unix::fs::symlink(&target, &path).unwrap();
     let output = binary(temp.path())
-        .args(["config", "init", "--config"])
+        .args(["--config", "init", "--config-file"])
         .arg(&path)
         .output()
         .unwrap();

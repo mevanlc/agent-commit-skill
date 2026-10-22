@@ -38,6 +38,7 @@ pub fn command() -> Command {
     let mut cmd = Command::new("acsc")
         .version(env!("CARGO_PKG_VERSION"))
         .propagate_version(true)
+        .disable_help_subcommand(true)
         .about("Launch an agent's commit skill")
         .args_override_self(true)
         .after_help("Later options override earlier selections. Harness and mode are required for launching (flags or configuration).\nArguments after -- go unchanged to the harness.\nExample: acsc --harness codex -a -yp --staged --no-push -e high")
@@ -66,11 +67,11 @@ pub fn command() -> Command {
         .arg(flag("no-fast", "Cancel acsc's fast-mode request"))
         .arg(value("command", "Replace the entire command prefix with this executable")
             .value_parser(clap::value_parser!(OsString)).value_hint(ValueHint::ExecutablePath))
-        .arg(value("config", "Read this TOML file").value_parser(clap::value_parser!(PathBuf)).value_hint(ValueHint::FilePath))
+        .arg(value("config-file", "Read this TOML file").value_parser(clap::value_parser!(PathBuf)).value_hint(ValueHint::FilePath))
         .arg(flag("no-config", "Ignore user configuration"))
         .arg(flag("dry-run", "Print a JSON launch plan without starting a process"))
-        .arg(Arg::new("instructions").num_args(0..).help("Additional instructions (joined with spaces)"))
-        .arg(Arg::new("harness_args").last(true).num_args(0..).value_parser(clap::value_parser!(OsString)).help("Arguments forwarded unchanged"));
+        .arg(Arg::new("instructions").index(1).num_args(0..).help("Additional instructions (joined with spaces)"))
+        .arg(Arg::new("harness_args").index(2).last(true).num_args(0..).value_parser(clap::value_parser!(OsString)).help("Arguments forwarded unchanged"));
 
     for group in [
         &["mode", "all", "staged", "ask"][..],
@@ -80,7 +81,7 @@ pub fn command() -> Command {
         &["model", "model-id", "model-size"],
         &["effort", "raw-effort"],
         &["fast", "no-fast"],
-        &["config", "no-config"],
+        &["config-file", "no-config"],
     ] {
         for id in group {
             cmd = cmd.mut_arg(*id, |arg| {
@@ -90,7 +91,7 @@ pub fn command() -> Command {
     }
     // Keep parent and subcommand matches separate. clap's global propagation
     // merges identical IDs, but does not resolve cross-ID overrides such as
-    // `--config old models --no-config`. Overlaying the later segment preserves
+    // `--config-file old --models --no-config`. Overlaying the later segment preserves
     // alias ordering for all selection spellings.
     let options: Vec<_> = cmd
         .get_arguments()
@@ -99,17 +100,22 @@ pub fn command() -> Command {
         .collect();
     let config_options: Vec<_> = options
         .iter()
-        .filter(|arg| matches!(arg.get_id().as_str(), "config" | "no-config"))
+        .filter(|arg| matches!(arg.get_id().as_str(), "config-file" | "no-config"))
         .cloned()
         .collect();
+    // Use the flag spelling as the actual name so bare management words remain
+    // instructions. Hidden flag aliases enable flag parsing without duplicating
+    // the spelling in help.
     cmd.subcommand(
-        Command::new("models")
+        Command::new("--models")
+            .long_flag_alias("models")
             .about("List model presets and optional cached suggestions")
             .args_override_self(true)
             .args(options.clone()),
     )
     .subcommand(
-        Command::new("config")
+        Command::new("--config")
+            .long_flag_alias("config")
             .about("View, edit, or initialize user configuration")
             .args_override_self(true)
             .args(config_options.clone())
@@ -136,7 +142,8 @@ pub fn command() -> Command {
             ),
     )
     .subcommand(
-        Command::new("completion")
+        Command::new("--completion")
+            .long_flag_alias("completion")
             .about("Generate dynamic shell completion registration")
             .args_override_self(true)
             .args(options)
@@ -216,7 +223,7 @@ impl Overrides {
             push: toggle(matches, "push", "no-push"),
             fast: toggle(matches, "fast", "no-fast"),
             command: selection(matches, "command"),
-            config: selection::<PathBuf>(matches, "config")
+            config: selection::<PathBuf>(matches, "config-file")
                 .map(ConfigChoice::File)
                 .unwrap_or_else(|| {
                     if is_set(matches, "no-config") {

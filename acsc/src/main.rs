@@ -18,7 +18,7 @@ fn run() -> Result<i32> {
         return Ok(0);
     }
     let matches = cli::command().get_matches();
-    if let Some(("completion", subcommand)) = matches.subcommand() {
+    if let Some(("--completion", subcommand)) = matches.subcommand() {
         completion::registration(
             subcommand
                 .get_one::<String>("shell")
@@ -28,7 +28,7 @@ fn run() -> Result<i32> {
         return Ok(0);
     }
     let overrides = Overrides::from_matches(&matches);
-    if let Some(("config", config)) = matches.subcommand() {
+    if let Some(("--config", config)) = matches.subcommand() {
         let path = overrides.config.path()?;
         return match config.subcommand().expect("required config subcommand") {
             ("view", _) => {
@@ -45,7 +45,7 @@ fn run() -> Result<i32> {
         };
     }
     let resolver = Resolver::new(Config::load(&overrides.config)?)?;
-    if matches.subcommand_name() == Some("models") {
+    if matches.subcommand_name() == Some("--models") {
         let catalog = Catalog::load(&resolver)?;
         let selected = resolver
             .selected_harness(&overrides)

@@ -98,11 +98,11 @@ impl ConfigChoice {
     pub fn path(&self) -> Result<PathBuf> {
         match self {
             Self::Default => {
-                default_path().context("cannot determine config path; use --config PATH")
+                default_path().context("cannot determine config path; use --config-file PATH")
             }
             Self::File(path) => Ok(path.clone()),
             Self::Disabled => bail!(
-                "configuration is disabled by --no-config; remove it or select --config PATH later"
+                "configuration is disabled by --no-config; remove it or select --config-file PATH later"
             ),
         }
     }

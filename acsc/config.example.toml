@@ -9,8 +9,8 @@ yes = false
 push = false
 fast = false
 
-# This global effort overrides bundled harness/model efforts. Remove it to use
-# the launcher-derived defaults (for example Claude high, spark xhigh).
+# This global effort overrides bundled harness/model efforts. Remove it to
+# inherit each harness/model's effort default.
 
 [harnesses.codex]
 model = "sol"

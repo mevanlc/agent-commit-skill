@@ -49,7 +49,7 @@ acsc [options] [instructions...] [-- harness_args...]
 | Effort | `-e/--effort LEVEL`; `--raw-effort VALUE` |
 | Fast mode | `-f/--fast`, `--no-fast` |
 | Launch command | `--command PROGRAM` |
-| Configuration | `--config PATH`, `--no-config` |
+| Configuration | `--config-file PATH`, `--no-config` |
 | Preview | `--dry-run` |
 | Information | `-h/--help`, `--version` |
 
@@ -84,12 +84,16 @@ acsc [options] [instructions...] [-- harness_args...]
 ### Informational commands
 
 ```text
-acsc models [--harness HARNESS]
-acsc completion SHELL
+acsc --models [--harness HARNESS]
+acsc --completion SHELL
 ```
 
 Model listing does not require a commit mode. Without a selected harness, it
 groups results by harness. Completion supports Bash, Zsh, Fish, and PowerShell.
+Management entry points require the `--` prefix, including
+`acsc --config init|view|edit`. Bare `models`, `completion`, `config`, and `help` remain
+additional instructions. Options belonging to a management subcommand stay
+in that subcommand's help.
 
 ### Aliases
 
@@ -125,7 +129,7 @@ Use optional TOML configuration:
 - Unix: `$XDG_CONFIG_HOME/acsc/config.toml`, falling back to
   `~/.config/acsc/config.toml`.
 - Windows: `%APPDATA%\acsc\config.toml`.
-- `--config` selects an alternative file; `--no-config` disables user
+- `--config-file` selects an alternative file; `--no-config` disables user
   configuration. Their last occurrence wins.
 - Missing default configuration is normal. Invalid configuration or an
   explicitly selected missing file produces an actionable error.
@@ -200,7 +204,6 @@ Bundle the existing model selections as data:
 |---|---|---|---|
 | Antigravity | `pro` | `gemini-3.1-pro` | High |
 | Antigravity | `flash` | `gemini-3.8-flash` | Inherit |
-| Codex | `spark` | `gpt-5.3-codex-spark` | Xhigh |
 | Claude | `opus` | `opus` | Inherit |
 | Claude | `fable` | `fable` | Inherit |
 | Claude | `sonnet` | `sonnet` | Inherit |

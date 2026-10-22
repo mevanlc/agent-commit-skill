@@ -57,7 +57,7 @@ pub fn starter() -> Result<String> {
 pub fn view(path: &Path, output: &mut dyn Write) -> Result<()> {
     let mut file = File::open(path).with_context(|| {
         format!(
-            "cannot read config {}; use acsc config init to create it if missing",
+            "cannot read config {}; use acsc --config init to create it if missing",
             path.display()
         )
     })?;

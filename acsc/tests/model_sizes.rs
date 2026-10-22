@@ -70,18 +70,13 @@ fn bundled_sizes_select_pinned_models_without_changing_explicit_effort() {
 #[test]
 fn model_and_size_options_override_in_both_directions_and_across_subcommands() {
     for tail in [
-        vec!["--model-size", "normal", "--model", "spark"],
-        vec![
-            "--model-size",
-            "xlarge",
-            "--model-id",
-            "gpt-5.3-codex-spark",
-        ],
+        vec!["--model-size", "normal", "--model", "gpt-6.1-sol"],
+        vec!["--model-size", "xlarge", "--model-id", "gpt-6.1-sol"],
     ] {
         let mut args = vec!["--harness", "codex", "-s"];
         args.extend(tail);
         let resolved = resolve("", &args);
-        assert_eq!(resolved.model.value.as_deref(), Some("gpt-5.3-codex-spark"));
+        assert_eq!(resolved.model.value.as_deref(), Some("gpt-6.1-sol"));
         assert!(resolved.model_size.is_none());
     }
     for prefix in ["--model", "--model-id", "--model-size"] {
@@ -108,7 +103,7 @@ fn model_and_size_options_override_in_both_directions_and_across_subcommands() {
             "-s",
             "--model-size",
             "xlarge",
-            "models",
+            "--models",
             "--model-id",
             "literal",
         ],
@@ -122,8 +117,8 @@ fn model_and_size_options_override_in_both_directions_and_across_subcommands() {
             "codex",
             "-s",
             "--model",
-            "spark",
-            "models",
+            "gpt-6.1-sol",
+            "--models",
             "--model-size",
             "large",
             "--harness",
@@ -169,10 +164,10 @@ fn configured_size_defaults_follow_cli_harness_global_precedence() {
     assert!(resolved.model.value.is_none());
     assert!(resolved.model_size.is_none());
     let resolved = resolve(
-        "[defaults]\nmodel_size='xlarge'\n[harnesses.codex]\nmodel='spark'",
+        "[defaults]\nmodel_size='xlarge'\n[harnesses.codex]\nmodel='gpt-6.1-sol'",
         &["--harness", "codex", "-s"],
     );
-    assert_eq!(resolved.model.value.as_deref(), Some("gpt-5.3-codex-spark"));
+    assert_eq!(resolved.model.value.as_deref(), Some("gpt-6.1-sol"));
     assert!(resolved.model_size.is_none());
 }
 

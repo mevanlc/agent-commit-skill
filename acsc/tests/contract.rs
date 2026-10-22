@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use acsc::catalog::Catalog;
 use acsc::cli::{self, Overrides};
-use acsc::config::{Config, ConfigChoice};
+use acsc::config::{Config, ConfigChoice, ModelConfig};
 use acsc::domain::{EffortSelection, Harness, Mode, Source};
 use acsc::launch::LaunchPlan;
 use acsc::resolve::Resolver;
@@ -32,9 +32,67 @@ fn clap_definition_is_consistent() {
 }
 
 #[test]
+fn management_flags_after_instructions_dispatch_and_double_dash_preserves_forwarding() {
+    for command in ["--models", "--completion", "--config"] {
+        let mut args = vec!["acsc", "notes", "--harness", "codex", "-s", command];
+        match command {
+            "--completion" => args.push("bash"),
+            "--config" => args.push("view"),
+            _ => {}
+        }
+        let matches = cli::command().try_get_matches_from(args).unwrap();
+        assert_eq!(matches.subcommand_name(), Some(command));
+        assert_eq!(Overrides::from_matches(&matches).instructions, ["notes"]);
+    }
+    let cli = cli(&[
+        "--harness",
+        "codex",
+        "-s",
+        "notes",
+        "--",
+        "--config",
+        "init",
+        "--models",
+        "--completion",
+        "bash",
+    ]);
+    assert_eq!(cli.instructions, ["notes"]);
+    assert_eq!(
+        cli.forwarded,
+        ["--config", "init", "--models", "--completion", "bash"].map(OsString::from)
+    );
+}
+
+#[test]
+fn management_help_keeps_operation_flags_in_their_own_scope() {
+    let help = cli::command().render_help().to_string();
+    for command in ["--models", "--config", "--completion"] {
+        assert_eq!(
+            help.lines()
+                .filter(|line| line.split_whitespace().next() == Some(command))
+                .count(),
+            1
+        );
+    }
+    assert!(help.contains("--config-file"));
+    assert!(!help.contains("--overwrite"));
+    let help = cli::command()
+        .try_get_matches_from(["acsc", "--config", "--help"])
+        .unwrap_err();
+    assert_eq!(help.kind(), clap::error::ErrorKind::DisplayHelp);
+    assert!(!help.to_string().contains("--overwrite"));
+    let help = cli::command()
+        .try_get_matches_from(["acsc", "--config", "init", "--help"])
+        .unwrap_err();
+    assert_eq!(help.kind(), clap::error::ErrorKind::DisplayHelp);
+    assert!(help.to_string().contains("Usage: acsc --config init"));
+    assert!(help.to_string().contains("--overwrite"));
+}
+
+#[test]
 fn alias_options_and_repeated_shorthand_are_last_wins() {
     let resolved = plan(
-        "",
+        "[harnesses.codex.models.fixture-codex]\naliases=['quick']",
         &[
             "--harness",
             "claude",
@@ -60,11 +118,11 @@ fn alias_options_and_repeated_shorthand_are_last_wins() {
             "final",
             "-.",
             "-m",
-            "spark",
+            "quick",
             "--model-id",
             "literal",
             "--model",
-            "spark",
+            "quick",
             "-e",
             "low",
             "--raw-effort",
@@ -88,7 +146,7 @@ fn alias_options_and_repeated_shorthand_are_last_wins() {
     assert!(!resolved.push.value);
     assert!(!resolved.fast.value);
     assert_eq!(resolved.skill.value, "gdf-commit");
-    assert_eq!(resolved.model.value.as_deref(), Some("gpt-5.3-codex-spark"));
+    assert_eq!(resolved.model.value.as_deref(), Some("fixture-codex"));
     assert_eq!(resolved.native_effort.value.as_deref(), Some("high"));
     assert_eq!(resolved.command.value, [OsString::from("two")]);
 }
@@ -110,8 +168,8 @@ fn all_override_directions_and_attached_short_values_work() {
             "-p",
             "--no-fast",
             "-f",
-            "--model=spark",
-            "--model-id=spark",
+            "--model=quick",
+            "--model-id=quick",
             "--effort=high",
             "--raw-effort=minimal",
         ],
@@ -119,7 +177,7 @@ fn all_override_directions_and_attached_short_values_work() {
     .selections;
     assert_eq!(resolved.mode.value, Mode::All);
     assert_eq!(resolved.skill.value, "custom");
-    assert_eq!(resolved.model.value.as_deref(), Some("spark"));
+    assert_eq!(resolved.model.value.as_deref(), Some("quick"));
     assert_eq!(resolved.native_effort.value.as_deref(), Some("minimal"));
     assert!(resolved.yes.value && resolved.push.value && resolved.fast.value);
     let resolved = plan("", &["--harness=codex", "-as", "-munknown", "-elow"]).selections;
@@ -165,7 +223,7 @@ effort = "max"
             "-e",
             "high",
             "-m",
-            "spark",
+            "quick",
             "-m",
             "future",
         ],
@@ -185,12 +243,31 @@ fn user_defaults_take_priority_over_more_specific_bundled_defaults() {
             Source::UserHarness,
         ),
         (
-            "[defaults]\neffort='low'\n[harnesses.codex]\neffort='max'\n[harnesses.codex.models.'gpt-5.3-codex-spark']\neffort='ultra'",
+            "[defaults]\neffort='low'\n[harnesses.codex]\neffort='max'\n[harnesses.codex.models.'fixture-codex']\neffort='ultra'",
             "ultra",
             Source::UserModel,
         ),
     ] {
-        let resolved = plan(config, &["--harness", "codex", "-a", "-m", "spark"]).selections;
+        // Synthetic bundled metadata keeps precedence coverage independent of
+        // any particular service model's lifecycle.
+        let mut resolver = Resolver::new(Config::parse(config).unwrap()).unwrap();
+        resolver
+            .bundled
+            .harnesses
+            .get_mut(&Harness::Codex)
+            .unwrap()
+            .models
+            .insert(
+                "fixture-codex".into(),
+                ModelConfig {
+                    aliases: Some(vec!["quick".into()]),
+                    effort: Some("xhigh".into()),
+                    ..Default::default()
+                },
+            );
+        let resolved = resolver
+            .resolve(&cli(&["--harness", "codex", "-a", "-m", "quick"]))
+            .unwrap();
         assert_eq!(resolved.native_effort.value.as_deref(), Some(expected));
         assert_eq!(resolved.effort.source, source);
     }
@@ -324,10 +401,10 @@ effort_map = { ultra = "model-ultra" }
 
 #[test]
 fn configured_raw_effort_and_harness_default_override_shared_defaults() {
-    let config = "[defaults]\nraw_effort='native'\n[harnesses.codex.models.'gpt-5.3-codex-spark']\neffort='harness-default'";
+    let config = "[defaults]\nraw_effort='native'\n[harnesses.codex.models.'fixture-codex']\naliases=['quick']\neffort='harness-default'";
     let default = plan(config, &["--harness", "codex", "-a"]).selections;
     assert_eq!(default.native_effort.value.as_deref(), Some("native"));
-    let model = plan(config, &["--harness", "codex", "-a", "-m", "spark"]).selections;
+    let model = plan(config, &["--harness", "codex", "-a", "-m", "quick"]).selections;
     assert_eq!(model.native_effort.value, None);
     assert_eq!(model.effort.source, Source::UserModel);
     let cli = plan(
@@ -337,7 +414,7 @@ fn configured_raw_effort_and_harness_default_override_shared_defaults() {
             "codex",
             "-a",
             "-m",
-            "spark",
+            "quick",
             "--raw-effort",
             "custom",
         ],
@@ -348,7 +425,7 @@ fn configured_raw_effort_and_harness_default_override_shared_defaults() {
 
 #[test]
 fn omission_overrides_config_and_literal_sentinels_are_forwarded() {
-    let config = "[harnesses.codex]\nmodel='spark'\neffort='ultra'";
+    let config = "[harnesses.codex]\nmodel='quick'\neffort='ultra'";
     let omitted = plan(
         config,
         &[
@@ -498,10 +575,10 @@ fn config_can_select_harness_mode_and_booleans() {
 #[test]
 fn config_selection_and_informational_flags_work_on_both_sides_of_subcommand() {
     let parsed = cli(&[
-        "--config",
+        "--config-file",
         "one",
         "--no-config",
-        "--config=two",
+        "--config-file=two",
         "--no-config",
     ]);
     assert_eq!(parsed.config, ConfigChoice::Disabled);
@@ -510,25 +587,25 @@ fn config_selection_and_informational_flags_work_on_both_sides_of_subcommand() {
             "acsc",
             "--harness",
             "codex",
-            "models",
+            "--models",
             "--harness",
             "claude",
-            "--config",
+            "--config-file",
             "config.toml",
         ])
         .unwrap();
     let parsed = Overrides::from_matches(&matches);
     assert_eq!(parsed.harness, Some(Harness::Claude));
     assert_eq!(parsed.config, ConfigChoice::File("config.toml".into()));
-    let parsed = cli(&["--no-config", "--config", "final"]);
+    let parsed = cli(&["--no-config", "--config-file", "final"]);
     assert_eq!(parsed.config, ConfigChoice::File("final".into()));
     for (args, expected) in [
         (
-            vec!["--config", "old", "models", "--no-config"],
+            vec!["--config-file", "old", "--models", "--no-config"],
             ConfigChoice::Disabled,
         ),
         (
-            vec!["--no-config", "models", "--config", "new"],
+            vec!["--no-config", "--models", "--config-file", "new"],
             ConfigChoice::File("new".into()),
         ),
     ] {
@@ -540,11 +617,11 @@ fn config_selection_and_informational_flags_work_on_both_sides_of_subcommand() {
         "-p",
         "-.",
         "-m",
-        "spark",
+        "quick",
         "-e",
         "high",
         "-f",
-        "models",
+        "--models",
         "--mode",
         "ask",
         "--no-yes",
@@ -598,10 +675,10 @@ fn ambiguous_presets_are_rejected_and_user_alias_arrays_replace_defaults() {
     ] {
         assert!(Resolver::new(Config::parse(config).unwrap()).is_err());
     }
-    let resolver = Resolver::new(Config::parse("[harnesses.codex.models.'gpt-5.3-codex-spark']\naliases=['quick']\n[discovery.codex_cache]\nenabled=false").unwrap()).unwrap();
+    let resolver = Resolver::new(Config::parse("[harnesses.antigravity.models.'gemini-3.8-flash']\naliases=['quick']\n[discovery.codex_cache]\nenabled=false").unwrap()).unwrap();
     let catalog = Catalog::load(&resolver).unwrap();
-    assert!(catalog.find(Harness::Codex, "spark").is_none());
-    assert!(catalog.find(Harness::Codex, "quick").is_some());
+    assert!(catalog.find(Harness::Antigravity, "flash").is_none());
+    assert!(catalog.find(Harness::Antigravity, "quick").is_some());
 }
 
 #[test]

@@ -12,6 +12,78 @@ use common::{binary, quoted};
 use tempfile::TempDir;
 
 #[test]
+fn bare_management_words_reach_the_prompt_without_running_a_management_action() {
+    let temp = TempDir::new().unwrap();
+    for instructions in [
+        vec!["config", "init"],
+        vec!["models", "need", "review"],
+        vec!["completion", "bash"],
+        vec!["help", "config", "init"],
+    ] {
+        let output = binary(temp.path())
+            .args(&instructions)
+            .args(["--harness", "codex", "-s", "--no-config", "--dry-run"])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let preview: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(
+            preview["prompt"],
+            format!("$commit --staged {}", instructions.join(" "))
+        );
+    }
+    assert!(fs::read_dir(temp.path()).unwrap().next().is_none());
+}
+
+#[test]
+fn completion_offers_management_flags_and_their_scoped_arguments() {
+    for (words, partial, expected) in [
+        (
+            vec!["acsc"],
+            "--co",
+            vec!["--config", "--config-file", "--completion"],
+        ),
+        (vec!["acsc", "notes"], "--mo", vec!["--models"]),
+        (vec!["acsc", "--config"], "in", vec!["init"]),
+        (vec!["acsc", "--completion"], "z", vec!["zsh"]),
+    ] {
+        let mut input: Vec<_> = words.into_iter().map(OsString::from).collect();
+        let mut command = completion::command_for(&input);
+        input.push(partial.into());
+        let index = input.len() - 1;
+        let candidates = clap_complete::engine::complete(&mut command, input, index, None).unwrap();
+        let values: Vec<_> = candidates
+            .iter()
+            .map(|candidate| candidate.get_value().to_str().unwrap())
+            .collect();
+        for value in expected {
+            assert_eq!(
+                values
+                    .iter()
+                    .filter(|candidate| **candidate == value)
+                    .count(),
+                1,
+                "{values:?}"
+            );
+        }
+    }
+    let mut input: Vec<_> = ["acsc", "--"].map(OsString::from).into();
+    let mut command = completion::command_for(&input);
+    input.push("--co".into());
+    let candidates = clap_complete::engine::complete(&mut command, input, 2, None).unwrap();
+    assert!(!candidates.iter().any(|candidate| {
+        matches!(
+            candidate.get_value().to_str(),
+            Some("--config" | "--completion")
+        )
+    }));
+}
+
+#[test]
 fn cache_merges_config_metadata_hides_hidden_entries_and_deduplicates() {
     let temp = TempDir::new().unwrap();
     let cache = temp.path().join("cache.json");
@@ -72,7 +144,7 @@ fn optional_cache_failures_and_disabled_cache_do_not_block_resolution() {
         assert!(
             Catalog::load(&resolver)
                 .unwrap()
-                .find(Harness::Codex, "spark")
+                .find(Harness::Codex, "gpt-6.1-sol")
                 .is_some()
         );
     }
@@ -99,7 +171,7 @@ fn discovery_uses_codex_home_and_never_changes_launch_defaults() {
     let contents = r#"{"models":[{"slug":"new","display_name":"Latest","default_reasoning_level":"ultra","priority":1,"supported_reasoning_levels":[{"effort":"ultra"}]}]}"#;
     fs::write(&cache, contents).unwrap();
     let models = binary(temp.path())
-        .args(["models", "--harness", "codex"])
+        .args(["--models", "--harness", "codex"])
         .output()
         .unwrap();
     assert!(
@@ -142,9 +214,9 @@ fn model_sizes_are_listed_and_complete_native_efforts_for_the_mapped_model() {
     let config = temp.path().join("config.toml");
     fs::write(&config, "[harnesses.claude.model_sizes]\nlarge='size-target'\n[harnesses.claude.models.size-target]\nnative_efforts=['native-tier-effort']\n[discovery.codex_cache]\nenabled=false").unwrap();
     let output = binary(temp.path())
-        .args(["--config"])
+        .args(["--config-file"])
         .arg(&config)
-        .args(["models", "--harness", "claude"])
+        .args(["--models", "--harness", "claude"])
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -152,7 +224,7 @@ fn model_sizes_are_listed_and_complete_native_efforts_for_the_mapped_model() {
     assert!(output.contains("size-target  [user]\n    model sizes: large"));
     let words: Vec<_> = [
         "acsc",
-        "--config",
+        "--config-file",
         config.to_str().unwrap(),
         "--harness",
         "claude",
@@ -170,7 +242,7 @@ fn model_sizes_are_listed_and_complete_native_efforts_for_the_mapped_model() {
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].get_value(), "native-tier-effort");
     let output = binary(temp.path())
-        .arg("--config")
+        .arg("--config-file")
         .arg(&config)
         .args([
             "--harness",
@@ -198,7 +270,7 @@ fn completion_uses_final_harness_user_presets_and_native_efforts() {
         "acsc",
         "--harness",
         "codex",
-        "--config",
+        "--config-file",
         config.to_str().unwrap(),
         "--harness",
         "claude",
@@ -257,13 +329,13 @@ fn actual_dynamic_completion_is_quiet_with_incomplete_input_and_broken_data() {
         .args([
             "--",
             "acsc",
-            "--config",
+            "--config-file",
             config.to_str().unwrap(),
             "--harness",
             "codex",
             "-a",
             "--model",
-            "sp",
+            "gpt-6.1",
         ])
         .output()
         .unwrap();
@@ -274,12 +346,16 @@ fn actual_dynamic_completion_is_quiet_with_incomplete_input_and_broken_data() {
         String::from_utf8_lossy(&output.stderr)
     );
     // Cursor indices are zero based; the last word is index 7 in this request.
-    assert!(String::from_utf8(output.stdout).unwrap().contains("spark"));
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains("gpt-6.1-sol")
+    );
     for tail in [
         vec!["--harness"],
         vec!["--effort"],
         vec!["--harness", "co"],
-        vec!["--config"],
+        vec!["--config-file"],
     ] {
         let mut args = vec!["--", "acsc"];
         args.extend(tail);
@@ -299,7 +375,7 @@ fn completions_are_generated_for_all_requested_shells_without_loading_config() {
     let temp = TempDir::new().unwrap();
     for shell in ["bash", "zsh", "fish", "powershell"] {
         let output = binary(temp.path())
-            .args(["--config", "missing.toml", "completion", shell])
+            .args(["--config-file", "missing.toml", "--completion", shell])
             .output()
             .unwrap();
         assert!(

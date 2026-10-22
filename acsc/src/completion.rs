@@ -17,6 +17,13 @@ pub const ENV: &str = "ACSC_COMPLETE";
 /// Parse only completed words. Partial or invalid input and optional files must
 /// never print diagnostics while the shell is completing.
 pub fn command_for(words: &[OsString]) -> Command {
+    // Everything after the delimiter belongs to the harness. The completion
+    // engine otherwise still recognizes subcommand names in this tail.
+    if words.iter().any(|word| word == "--") {
+        return Command::new("acsc")
+            .disable_help_flag(true)
+            .disable_help_subcommand(true);
+    }
     let parsed = cli::command()
         .ignore_errors(true)
         .try_get_matches_from(words);
@@ -52,13 +59,39 @@ pub fn command_for(words: &[OsString]) -> Command {
         .into_iter()
         .collect();
 
-    let command = cli::command()
-        .mut_subcommand("models", |command| {
+    let mut command = cli::command()
+        .mut_subcommand("--models", |command| {
             with_values(command, &named, &ids, &native_efforts)
         })
-        .mut_subcommand("completion", |command| {
+        .mut_subcommand("--completion", |command| {
             with_values(command, &named, &ids, &native_efforts)
         });
+    // clap_complete stops offering subcommands after entering variadic
+    // instructions, although flag subcommands still parse there. Offer those
+    // same candidates through the positional completer; matching IDs deduplicate
+    // them when the engine also offers subcommands.
+    let commands: Vec<_> = command
+        .get_subcommands()
+        .filter(|command| command.get_name().starts_with("--"))
+        .map(|command| (command.get_name().to_owned(), command.get_about().cloned()))
+        .collect();
+    command = command.mut_arg("instructions", |arg| {
+        arg.add(ArgValueCompleter::new(move |current: &OsStr| {
+            let Some(prefix) = current.to_str() else {
+                return Vec::new();
+            };
+            commands
+                .iter()
+                .filter(|(name, _)| name.starts_with(prefix))
+                .map(|(name, help)| {
+                    CompletionCandidate::new(name.clone())
+                        .id(Some(format!("command::{name}")))
+                        .tag(Some("Commands".into()))
+                        .help(help.clone())
+                })
+                .collect::<Vec<_>>()
+        }))
+    });
     with_values(command, &named, &ids, &native_efforts)
 }
 

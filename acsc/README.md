@@ -25,14 +25,14 @@ Use `--command PROGRAM` or configuration to select another executable.
 
 ```sh
 acsc --harness codex --staged
-acsc --harness codex -a -y -p -m spark -e high
+acsc --harness codex -a -y -p -m gpt-6.1-sol -e high
 acsc --harness claude -k -. --model sonnet
 acsc --harness antigravity -a --model pro
 acsc --harness copilot -s use imperative mood -- --native-option value
 acsc --harness codex -a --dry-run
 acsc --harness codex -s --model-size large -e high
-acsc models --harness codex
-acsc config edit
+acsc --models --harness codex
+acsc --config edit
 ```
 
 Harness and mode must come from flags or configuration. Additional instruction
@@ -53,7 +53,7 @@ their sources without starting a child process.
 | Effort | `-e/--effort LEVEL`, `--raw-effort VALUE` |
 | Fast | `-f/--fast`, `--no-fast` (Codex/Claude) |
 | Executable | `--command PROGRAM` |
-| Config | `--config PATH`, `--no-config` |
+| Config | `--config-file PATH`, `--no-config` |
 | Preview | `--dry-run` |
 
 Later selections win, including different spellings for the same selection.
@@ -80,9 +80,14 @@ arguments use the existing `--all-yes-push` / `--staged-push` / `--ask-push`
 suffixes. Arbitrary skill names receive the same arguments.
 
 `-h` means help and `-m` means model. Legacy model letters and repeated effort
-shortcuts are replaced by named values. The `models`, `config`, and `completion`
-words are subcommands; use another opening word when writing instructions that
-would otherwise start with one of these names.
+shortcuts are replaced by named values. Management commands require their flag
+spellings: `--models`, `--config`, and `--completion`. Bare words such as
+`models`, `config`, `completion`, and `help` are ordinary additional instructions.
+After `--config`, the operations `init`, `view`, and `edit` select that command's
+subcommands. Their options remain scoped: `--overwrite` appears in
+`acsc --config init --help`, while top-level help lists the management entry
+points. Arguments after `--` are always forwarded to the harness, including
+words that look like management flags.
 
 ## Configuration and defaults
 
@@ -91,17 +96,17 @@ User configuration is optional TOML at:
 - Unix: `$XDG_CONFIG_HOME/acsc/config.toml`, otherwise `~/.config/acsc/config.toml`.
 - Windows: `%APPDATA%\acsc\config.toml`.
 
-`--config PATH` selects another file; `--no-config` disables user configuration.
-Their final occurrence wins. Missing default files are normal; malformed
+`--config-file PATH` selects another file; `--no-config` disables user
+configuration. Their final occurrence wins. Missing default files are normal; malformed
 files and explicitly selected missing files report errors. There is no
 repository-local config or named-profile layer.
 
 ```sh
-acsc config edit                  # Open in $VISUAL, then $EDITOR
-acsc config view                  # Print the file exactly as written
-acsc config init                  # Create a commented reference to bundled defaults
-acsc config init --overwrite      # Replace an existing file
-acsc config edit --config ./my-config.toml
+acsc --config edit                  # Open in $VISUAL, then $EDITOR
+acsc --config view                  # Print the file exactly as written
+acsc --config init                  # Create a commented reference to bundled defaults
+acsc --config init --overwrite      # Replace an existing file
+acsc --config edit --config-file ./my-config.toml
 ```
 
 `init` creates parent directories and refuses to replace an existing file unless
@@ -122,9 +127,9 @@ and its exit code is returned.
 
 `view` prints the selected file's contents without parsing TOML; it reports an
 error if the file is missing. Editing also works with malformed configuration.
-All three commands honor `--config PATH` before or after the subcommands, with
-later selections winning. `--no-config` reports an error for these commands
-unless followed by `--config PATH`.
+All three commands honor `--config-file PATH` before or after the subcommands,
+with later selections winning. `--no-config` reports an error for these commands
+unless followed by `--config-file PATH`.
 
 See [config.example.toml](config.example.toml) for a working example and
 [src/defaults.toml](src/defaults.toml) for the complete bundled data. Both are
@@ -138,8 +143,8 @@ editable TOML rather than model capability claims.
 | Claude | `clauded` | `opus` | high |
 
 Windows uses `.ps1` wrapper names. Bundled presets include Antigravity `pro`
-and `flash`, Codex `spark`, and Claude `opus`, `fable`, `sonnet`, and `haiku`.
-`pro` defaults to high effort, and `spark` to xhigh.
+and `flash`, and Claude `opus`, `fable`, `sonnet`, and `haiku`.
+`pro` defaults to high effort.
 
 `--model` resolves aliases within the final harness and otherwise accepts a
 literal model ID. `--model-id` always uses its literal ID. `--model
@@ -191,9 +196,9 @@ CLI model/size selections take precedence over both. With no size selection,
 the existing harness model defaults apply.
 
 Copilot has no bundled size mapping yet. Selecting an unconfigured size reports
-an error naming the config entry to add. `acsc models` shows the effective size
+an error naming the config entry to add. `acsc --models` shows the effective size
 labels alongside their target IDs, and `--dry-run` shows the selected size, its
-source, and the source of the mapped model ID. `acsc config init` includes the
+source, and the source of the mapped model ID. `acsc --config init` includes the
 commented mappings.
 
 ### Effort and model metadata
@@ -252,7 +257,7 @@ fast setting in control. Fast requests for other adapters report an error.
 
 ## Model discovery and completion
 
-`acsc models` groups presets and suggestions by harness. `--harness` narrows
+`acsc --models` groups presets and suggestions by harness. `--harness` narrows
 the listing. Codex suggestions additionally read `$CODEX_HOME/models_cache.json`
 or `~/.codex/models_cache.json`. Configure discovery with:
 
@@ -273,16 +278,16 @@ installed binary and current configuration:
 
 ```sh
 # Bash (~/.bashrc) or Zsh (~/.zshrc)
-source <(acsc completion bash)
-source <(acsc completion zsh)
+source <(acsc --completion bash)
+source <(acsc --completion zsh)
 
 # Fish (config.fish)
-acsc completion fish | source
+acsc --completion fish | source
 ```
 
 ```powershell
 # PowerShell ($PROFILE)
-acsc completion powershell | Out-String | Invoke-Expression
+acsc --completion powershell | Out-String | Invoke-Expression
 ```
 
 The registration calls acsc to complete options, harnesses, modes, model

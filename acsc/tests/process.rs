@@ -38,7 +38,7 @@ fn launch_preserves_argv_cwd_environment_streams_and_nonzero_status() {
         .env("ACSC_TEST_ENV", "inherited 日本語")
         .env("ACSC_TEST_STATUS", "23")
         .args([
-            "--config",
+            "--config-file",
             config.to_str().unwrap(),
             "--harness",
             "codex",
@@ -98,12 +98,12 @@ fn dry_run_models_and_help_never_launch_the_configured_command() {
     fs::write(&config, "[harnesses.codex]\ncommand=['definitely-missing-acsc-wrapper']\n[discovery.codex_cache]\nenabled=false").unwrap();
     for args in [
         vec!["--harness", "codex", "-a", "--dry-run"],
-        vec!["models"],
+        vec!["--models"],
         vec!["--help"],
         vec!["--version"],
     ] {
         let output = binary(temp.path())
-            .args(["--config", config.to_str().unwrap()])
+            .args(["--config-file", config.to_str().unwrap()])
             .args(args)
             .output()
             .unwrap();
@@ -115,7 +115,7 @@ fn dry_run_models_and_help_never_launch_the_configured_command() {
     }
     let output = binary(temp.path())
         .args([
-            "--config",
+            "--config-file",
             config.to_str().unwrap(),
             "--harness",
             "codex",
@@ -153,7 +153,7 @@ fn default_config_paths_and_config_override_order_are_respected() {
     assert!(plan["selections"]["command"]["value"][0].is_string());
     let output = binary(temp.path())
         .args([
-            "--config",
+            "--config-file",
             "missing",
             "--no-config",
             "--harness",
@@ -167,7 +167,7 @@ fn default_config_paths_and_config_override_order_are_respected() {
     let output = binary(temp.path())
         .args([
             "--no-config",
-            "--config",
+            "--config-file",
             "missing",
             "--harness",
             "codex",
@@ -228,7 +228,7 @@ fn unix_exec_preserves_signal_exit() {
     .unwrap();
     let output = binary(temp.path())
         .args([
-            "--config",
+            "--config-file",
             config.to_str().unwrap(),
             "--harness",
             "codex",
@@ -286,7 +286,7 @@ fn windows_launches_powershell_wrapper_from_path_and_propagates_status() {
         .env("ACSC_TEST_ENV", "ok")
         .env("ACSC_TEST_STATUS", "17")
         .args([
-            "--config",
+            "--config-file",
             config.to_str().unwrap(),
             "--harness",
             "claude",
